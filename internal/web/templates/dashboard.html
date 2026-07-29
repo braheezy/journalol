@@ -1,0 +1,158 @@
+{{define "dashboard"}}
+{{template "header" .}}
+
+<div class="shell page-stack">
+  <section class="dashboard-intro" aria-labelledby="dashboard-title">
+    <div>
+      <p class="eyebrow">Today’s practice</p>
+      <h1 id="dashboard-title">Your next game has one job.</h1>
+      <p class="lede">Keep the focus small, play the game, then leave yourself one useful note.</p>
+    </div>
+    <a class="button button-secondary" href="/training">Plan your focus</a>
+  </section>
+
+  {{with .ActiveBlock}}
+    <section class="focus-card" aria-labelledby="active-focus-title">
+      <div class="focus-card-main">
+        <div class="section-kicker">
+          <span class="live-dot" aria-hidden="true"></span>
+          Active training block
+        </div>
+        <h2 id="active-focus-title">{{.Name}}</h2>
+        {{with .Description}}<p class="focus-description">{{.}}</p>{{end}}
+
+        {{with .Reminder}}
+          <div class="reminder">
+            <span class="reminder-label">Before you queue</span>
+            <p>{{.}}</p>
+          </div>
+        {{end}}
+      </div>
+
+      <div class="focus-targets">
+        <p class="small-heading">What you’re measuring</p>
+        {{if .Targets}}
+          <ul class="target-list">
+            {{range .Targets}}
+              <li>
+                <span>{{.Label}}</span>
+                {{if .Threshold}}
+                  <strong>{{.Comparator}} {{.Threshold}}{{if .Unit}} {{.Unit}}{{end}}</strong>
+                {{else}}
+                  <strong>Reflection check-in</strong>
+                {{end}}
+              </li>
+            {{end}}
+          </ul>
+        {{else}}
+          <p class="muted">This focus is reflection-led; there is no automatic target.</p>
+        {{end}}
+        <a class="text-link" href="/training">View training block <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+  {{else}}
+    <section class="empty-focus" aria-labelledby="empty-focus-title">
+      <div class="empty-icon" aria-hidden="true">◎</div>
+      <div>
+        <p class="eyebrow">No active focus</p>
+        <h2 id="empty-focus-title">Choose one thing to practice.</h2>
+        <p>A good block is specific enough to remember during a messy game.</p>
+      </div>
+      <a class="button button-primary" href="/training">Create a training block</a>
+    </section>
+  {{end}}
+
+  {{with .Summary}}
+    <section class="section-panel" aria-labelledby="practice-snapshot-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Recent form</p>
+          <h2 id="practice-snapshot-title">Practice snapshot</h2>
+        </div>
+        <p class="section-note">Last {{.Games}} eligible games · {{.Wins}} wins ({{.WinRate}})</p>
+      </div>
+
+      <div class="metric-grid">
+        <article class="metric-card metric-emphasis">
+          <p>Deaths / game</p>
+          <strong>{{.AverageDeaths}}</strong>
+          <span>Keep decisions repeatable</span>
+        </article>
+        <article class="metric-card">
+          <p>KDA</p>
+          <strong>{{.KDA}}</strong>
+          <span>Context, not a grade</span>
+        </article>
+        <article class="metric-card">
+          <p>Vision / minute</p>
+          <strong>{{.VisionPerMinute}}</strong>
+          <span>Information created</span>
+        </article>
+        <article class="metric-card">
+          <p>Control wards / game</p>
+          <strong>{{.ControlWardsPerGame}}</strong>
+          <span>Intentional map control</span>
+        </article>
+      </div>
+
+      {{with .ProgressText}}
+        <div class="progress-note">
+          <span class="progress-glyph" aria-hidden="true">↗</span>
+          <p>{{.}}</p>
+        </div>
+      {{end}}
+    </section>
+  {{end}}
+
+  <section class="section-panel" aria-labelledby="recent-matches-title">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Reflection queue</p>
+        <h2 id="recent-matches-title">Recent matches</h2>
+      </div>
+      <a class="text-link" href="/matches">All matches <span aria-hidden="true">→</span></a>
+    </div>
+
+    {{if .Matches}}
+      <ol class="match-list">
+        {{range .Matches}}
+          <li>
+            <a class="match-row" href="/matches/{{.ID}}">
+              <span class="result-mark {{if .IsRemake}}is-remake{{else if .Win}}is-win{{else}}is-loss{{end}}" aria-label="{{if .IsRemake}}Remake{{else if .Win}}Win{{else}}Loss{{end}}">
+                {{if .IsRemake}}R{{else if .Win}}W{{else}}L{{end}}
+              </span>
+              <span class="match-identity">
+                <strong>{{.Champion}}</strong>
+                <span>{{roleLabel .Role}} · {{.QueueType}}</span>
+              </span>
+              <span class="match-kda">
+                <strong>{{.Kills}} / {{.Deaths}} / {{.Assists}}</strong>
+                <span>K / D / A</span>
+              </span>
+              <span class="match-context">
+                <strong>{{.StartedAtLabel}}</strong>
+                <span>{{.DurationLabel}}</span>
+              </span>
+              {{if .IsRemake}}
+                <span class="review-state is-remake">Remake</span>
+              {{else if .ReviewComplete}}
+                <span class="review-state is-complete">Reviewed</span>
+              {{else}}
+                <span class="review-state">Review game</span>
+              {{end}}
+              <span class="row-arrow" aria-hidden="true">→</span>
+            </a>
+          </li>
+        {{end}}
+      </ol>
+    {{else}}
+      <div class="empty-state">
+        <p>No matches yet.</p>
+        <span>Riot import arrives in a later milestone; demo mode provides sample games for now.</span>
+      </div>
+    {{end}}
+  </section>
+</div>
+
+{{template "footer" .}}
+{{end}}

@@ -1,0 +1,20 @@
+{{define "error"}}
+{{template "header" .}}
+
+<div class="shell error-page">
+  <div class="error-mark" aria-hidden="true">!</div>
+  <p class="eyebrow">Something interrupted the plan</p>
+  <h1>{{if .Title}}{{.Title}}{{else}}We couldn’t open that page.{{end}}</h1>
+  {{with .Error}}
+    <p class="error-message">{{.}}</p>
+  {{else}}
+    <p class="error-message">Journalol hit an unexpected problem. Your saved training data has not been changed.</p>
+  {{end}}
+  <div class="error-actions">
+    <a class="button button-primary" href="/">Return to today</a>
+    <a class="button button-secondary" href="/matches">Open matches</a>
+  </div>
+</div>
+
+{{template "footer" .}}
+{{end}}

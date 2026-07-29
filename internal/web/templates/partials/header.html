@@ -1,0 +1,53 @@
+{{define "header"}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#f4f5ef">
+  <title>{{if .Title}}{{.Title}} · {{end}}Journalol</title>
+  <meta name="description" content="A private practice journal for deliberate League of Legends training.">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <header class="site-header">
+    <div class="shell header-inner">
+      <a class="brand" href="/" aria-label="Journalol dashboard">
+        <span class="brand-mark" aria-hidden="true">J</span>
+        <span>
+          <span class="brand-name">journalol</span>
+          <span class="brand-note">practice with intention</span>
+        </span>
+      </a>
+
+      <nav class="primary-nav" aria-label="Main navigation">
+        <a href="/"{{if eq .Title "Dashboard"}} aria-current="page"{{end}}>Today</a>
+        <a href="/matches"{{if eq .Title "Matches"}} aria-current="page"{{end}}>Matches</a>
+        <a href="/training"{{if eq .Title "Training"}} aria-current="page"{{end}}>Training</a>
+      </nav>
+
+      {{with .Player}}
+        <div class="player-chip" title="Primary player">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span class="player-name">{{if .DisplayName}}{{.DisplayName}}{{else}}{{.RiotID}}{{end}}</span>
+          {{if .IsDemo}}<span class="quiet-label">demo</span>{{end}}
+        </div>
+      {{end}}
+    </div>
+  </header>
+
+  {{with .Flash}}
+    <div class="shell flash-wrap">
+      <div class="flash" role="status">
+        <span aria-hidden="true">✓</span>
+        <span>{{.}}</span>
+      </div>
+    </div>
+  {{end}}
+
+  <main id="main-content" class="site-main">
+{{end}}

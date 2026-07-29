@@ -1,0 +1,102 @@
+{{define "matches"}}
+{{template "header" .}}
+
+<div class="shell page-stack">
+  <section class="page-heading" aria-labelledby="matches-title">
+    <div>
+      <p class="eyebrow">Your game archive</p>
+      <h1 id="matches-title">Matches</h1>
+      <p class="lede">Look for repeated decisions, not a perfect scoreline.</p>
+    </div>
+  </section>
+
+  <section class="filter-panel" aria-labelledby="filter-title">
+    <div class="filter-heading">
+      <h2 id="filter-title">Find a game</h2>
+      <a href="/matches" class="text-link">Clear filters</a>
+    </div>
+    <form class="filter-grid" method="get" action="/matches">
+      <label>
+        <span>Champion</span>
+        <input type="search" name="champion" value="{{.Filters.Champion}}" placeholder="e.g. Thresh">
+      </label>
+      <label>
+        <span>Role</span>
+        <select name="role">
+          <option value="">Any role</option>
+          <option value="TOP"{{if eq .Filters.Role "TOP"}} selected{{end}}>Top</option>
+          <option value="JUNGLE"{{if eq .Filters.Role "JUNGLE"}} selected{{end}}>Jungle</option>
+          <option value="MIDDLE"{{if eq .Filters.Role "MIDDLE"}} selected{{end}}>Mid</option>
+          <option value="BOTTOM"{{if eq .Filters.Role "BOTTOM"}} selected{{end}}>Bottom</option>
+          <option value="UTILITY"{{if eq .Filters.Role "UTILITY"}} selected{{end}}>Support</option>
+        </select>
+      </label>
+      <label>
+        <span>Result</span>
+        <select name="result">
+          <option value="">Any result</option>
+          <option value="win"{{if eq .Filters.Result "win"}} selected{{end}}>Win</option>
+          <option value="loss"{{if eq .Filters.Result "loss"}} selected{{end}}>Loss</option>
+        </select>
+      </label>
+      <label class="filter-search">
+        <span>Notes</span>
+        <input type="search" name="q" value="{{.Filters.Notes}}" placeholder="Search your reflections">
+      </label>
+      <button class="button button-primary filter-button" type="submit">Apply filters</button>
+    </form>
+  </section>
+
+  <section class="section-panel" aria-labelledby="match-history-title">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Recorded games</p>
+        <h2 id="match-history-title">Match history</h2>
+      </div>
+    </div>
+
+    {{if .Matches}}
+      <ol class="match-list match-list-detailed">
+        {{range .Matches}}
+          <li>
+            <a class="match-row" href="/matches/{{.ID}}">
+              <span class="result-mark {{if .IsRemake}}is-remake{{else if .Win}}is-win{{else}}is-loss{{end}}" aria-label="{{if .IsRemake}}Remake{{else if .Win}}Win{{else}}Loss{{end}}">
+                {{if .IsRemake}}R{{else if .Win}}W{{else}}L{{end}}
+              </span>
+              <span class="match-identity">
+                <strong>{{.Champion}}</strong>
+                <span>{{roleLabel .Role}} · {{.QueueType}}</span>
+                {{with .BlockName}}<small>{{.}}</small>{{end}}
+              </span>
+              <span class="match-kda">
+                <strong>{{.Kills}} / {{.Deaths}} / {{.Assists}}</strong>
+                <span>{{.CS}} CS · {{.VisionScore}} vision</span>
+              </span>
+              <span class="match-context">
+                <strong>{{.StartedAtLabel}}</strong>
+                <span>{{.DurationLabel}}</span>
+              </span>
+              {{if .IsRemake}}
+                <span class="review-state is-remake">Remake</span>
+              {{else if .ReviewComplete}}
+                <span class="review-state is-complete">Reviewed</span>
+              {{else}}
+                <span class="review-state">Needs review</span>
+              {{end}}
+              <span class="row-arrow" aria-hidden="true">→</span>
+            </a>
+          </li>
+        {{end}}
+      </ol>
+    {{else}}
+      <div class="empty-state empty-state-roomy">
+        <div class="empty-icon" aria-hidden="true">◇</div>
+        <p>No matches found.</p>
+        <span>Try clearing the filters. Riot import arrives in a later milestone; demo mode provides the games for now.</span>
+      </div>
+    {{end}}
+  </section>
+</div>
+
+{{template "footer" .}}
+{{end}}

@@ -1,0 +1,176 @@
+{{define "match_detail"}}
+{{template "header" .}}
+
+<div class="shell page-stack">
+  <a class="back-link" href="/matches"><span aria-hidden="true">←</span> All matches</a>
+
+  {{with .Match}}
+    <section class="match-hero" aria-labelledby="match-title">
+      <div class="result-seal {{if .IsRemake}}is-remake{{else if .Win}}is-win{{else}}is-loss{{end}}">
+        <span>{{if .IsRemake}}Remake{{else if .Win}}Win{{else}}Loss{{end}}</span>
+        <small>{{.DurationLabel}}</small>
+      </div>
+      <div class="match-hero-main">
+        <p class="eyebrow">{{.QueueType}} · {{.StartedAtLabel}}</p>
+        <h1 id="match-title">{{.Champion}} <span>{{roleLabel .Role}}</span></h1>
+        {{with .BlockName}}<p class="focus-association">Practiced during <strong>{{.}}</strong></p>{{end}}
+      </div>
+      <div class="hero-kda">
+        <strong>{{.Kills}} <span>/</span> {{.Deaths}} <span>/</span> {{.Assists}}</strong>
+        <small>K / D / A</small>
+      </div>
+    </section>
+
+    <section class="stat-strip" aria-label="Imported match statistics">
+      <div><span>CS</span><strong>{{.CS}}</strong></div>
+      <div><span>Gold</span><strong>{{.Gold}}</strong></div>
+      <div><span>Champion damage</span><strong>{{.ChampionDamage}}</strong></div>
+      <div><span>Vision score</span><strong>{{.VisionScore}}</strong></div>
+      <div><span>Control wards</span><strong>{{.ControlWards}}</strong></div>
+    </section>
+  {{end}}
+
+  {{if .Match.IsRemake}}
+    <section class="review-panel remake-panel" aria-labelledby="remake-title">
+      <div class="remake-copy">
+        <p class="eyebrow">No review needed</p>
+        <h2 id="remake-title">This game ended as a remake.</h2>
+        <p>Journalol keeps the imported stats for context, but excludes this game from training progress and measurable targets.</p>
+      </div>
+      <a class="button button-secondary" href="/matches">Back to matches</a>
+    </section>
+  {{else}}
+  <div class="detail-grid">
+    <section class="review-panel" aria-labelledby="review-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">One-minute reflection</p>
+          <h2 id="review-title">{{if .Match.ReviewComplete}}Update your review{{else}}Review this game{{end}}</h2>
+        </div>
+        {{if .Match.ReviewComplete}}<span class="saved-state">Saved</span>{{end}}
+      </div>
+
+      {{with .FormError}}
+        <div class="form-error" role="alert">
+          <strong>Check the review</strong>
+          <span>{{.}}</span>
+        </div>
+      {{end}}
+
+      <form class="review-form" method="post" action="/matches/{{.Match.ID}}/review" data-review-form>
+        <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+
+        <fieldset class="grade-fieldset">
+          <legend>How well did you follow your focus?</legend>
+          <p class="field-help">Score the process, not whether you won.</p>
+          <div class="grade-picker">
+            <label>
+              <input type="radio" name="grade" value="1" required{{with .Review}}{{if eq .Grade "1"}} checked{{end}}{{end}}>
+              <span><strong>1</strong><small>Lost it</small></span>
+            </label>
+            <label>
+              <input type="radio" name="grade" value="2"{{with .Review}}{{if eq .Grade "2"}} checked{{end}}{{end}}>
+              <span><strong>2</strong><small>Rarely</small></span>
+            </label>
+            <label>
+              <input type="radio" name="grade" value="3"{{with .Review}}{{if eq .Grade "3"}} checked{{end}}{{end}}>
+              <span><strong>3</strong><small>Sometimes</small></span>
+            </label>
+            <label>
+              <input type="radio" name="grade" value="4"{{with .Review}}{{if eq .Grade "4"}} checked{{end}}{{end}}>
+              <span><strong>4</strong><small>Mostly</small></span>
+            </label>
+            <label>
+              <input type="radio" name="grade" value="5"{{with .Review}}{{if eq .Grade "5"}} checked{{end}}{{end}}>
+              <span><strong>5</strong><small>Consistent</small></span>
+            </label>
+          </div>
+        </fieldset>
+
+        {{if .ManualTargets}}
+          <fieldset class="target-checkin-fieldset">
+            <legend>Focus check-in</legend>
+            <p class="field-help">Answer against the practice target assigned to this match.</p>
+            <div class="target-checkin-list">
+              {{range .ManualTargets}}
+                <div class="target-checkin">
+                  <div>
+                    <strong>{{.Label}}</strong>
+                    {{with .Prompt}}<p>{{.}}</p>{{end}}
+                  </div>
+                  <div class="binary-picker">
+                    <label>
+                      <input type="radio" name="manual_target_{{.ID}}" value="yes" required{{if eq .Answer "yes"}} checked{{end}}>
+                      <span>Yes</span>
+                    </label>
+                    <label>
+                      <input type="radio" name="manual_target_{{.ID}}" value="no"{{if eq .Answer "no"}} checked{{end}}>
+                      <span>Not this game</span>
+                    </label>
+                  </div>
+                </div>
+              {{end}}
+            </div>
+          </fieldset>
+        {{end}}
+
+        <div class="form-field">
+          <label for="biggest-mistake">Biggest mistake</label>
+          <textarea id="biggest-mistake" name="biggest_mistake" rows="3" maxlength="500" placeholder="What decision cost you the most?" aria-describedby="reflection-requirement biggest-mistake-count" data-counted>{{with .Review}}{{.BiggestMistake}}{{end}}</textarea>
+          <span id="biggest-mistake-count" class="field-help"><span data-character-count>0</span>/500 · One clear moment is enough.</span>
+        </div>
+
+        <fieldset class="category-fieldset">
+          <legend>What kind of mistake was it?</legend>
+          <p class="field-help">Choose any patterns you want to notice over time.</p>
+          <div class="category-grid">
+            {{range .Categories}}
+              <label class="check-chip">
+                <input type="checkbox" name="category_ids" value="{{.ID}}"{{if .Selected}} checked{{end}}>
+                <span>{{.Label}}</span>
+              </label>
+            {{else}}
+              <p class="muted">No mistake categories are configured.</p>
+            {{end}}
+          </div>
+        </fieldset>
+
+        <div class="reflection-grid">
+          <div class="form-field">
+            <label for="done-well">One thing done well</label>
+            <textarea id="done-well" name="done_well" rows="4" maxlength="500" placeholder="What should you repeat next game?" data-counted>{{with .Review}}{{.DoneWell}}{{end}}</textarea>
+            <span class="field-help"><span data-character-count>0</span>/500</span>
+          </div>
+          <div class="form-field">
+            <label for="next-game">Next game, I will…</label>
+            <textarea id="next-game" name="next_game" rows="4" maxlength="500" placeholder="Write one observable action." data-counted>{{with .Review}}{{.NextGame}}{{end}}</textarea>
+            <span class="field-help"><span data-character-count>0</span>/500</span>
+          </div>
+        </div>
+
+        <p id="reflection-requirement" class="field-help reflection-requirement">Add at least one reflection before saving.</p>
+
+        <div class="form-actions">
+          <p>Your notes stay in your local Journalol database.</p>
+          <button class="button button-primary" type="submit">{{if .Match.ReviewComplete}}Update review{{else}}Save review{{end}}</button>
+        </div>
+      </form>
+    </section>
+
+    <aside class="review-aside" aria-labelledby="review-prompt-title">
+      <p class="eyebrow">A useful review</p>
+      <h2 id="review-prompt-title">Describe the decision.</h2>
+      <p>“I died too much” is a result. “I entered river before checking where their jungler could be” is something you can train.</p>
+      {{with .Match.BlockName}}
+        <div class="aside-focus">
+          <span>Practice focus for this match</span>
+          <strong>{{.}}</strong>
+        </div>
+      {{end}}
+    </aside>
+  </div>
+  {{end}}
+</div>
+
+{{template "footer" .}}
+{{end}}

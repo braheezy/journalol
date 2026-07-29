@@ -1,0 +1,213 @@
+{{define "training"}}
+{{template "header" .}}
+
+<div class="shell page-stack">
+  <section class="page-heading training-heading" aria-labelledby="training-title">
+    <div>
+      <p class="eyebrow">Deliberate practice</p>
+      <h1 id="training-title">Training blocks</h1>
+      <p class="lede">Work on one repeatable behavior long enough to see a pattern.</p>
+    </div>
+    <a class="button button-primary" href="#new-focus">Create a focus</a>
+  </section>
+
+  {{with .ActiveBlock}}
+    <section class="active-training" aria-labelledby="active-training-title">
+      <div class="active-training-copy">
+        <div class="section-kicker"><span class="live-dot" aria-hidden="true"></span>Active now</div>
+        <h2 id="active-training-title">{{.Name}}</h2>
+        {{with .Description}}<p>{{.}}</p>{{end}}
+        {{with .Reminder}}
+          <div class="reminder reminder-compact">
+            <span class="reminder-label">In-game reminder</span>
+            <p>{{.}}</p>
+          </div>
+        {{end}}
+      </div>
+      <div class="active-training-targets">
+        <p class="small-heading">Targets</p>
+        {{if .Targets}}
+          <ul class="target-list">
+            {{range .Targets}}
+              <li>
+                <span>{{.Label}}</span>
+                {{if .Threshold}}
+                  <strong>{{.Comparator}} {{.Threshold}}{{if .Unit}} {{.Unit}}{{end}}</strong>
+                {{else}}
+                  <strong>Reflection check-in</strong>
+                {{end}}
+              </li>
+            {{end}}
+          </ul>
+        {{else}}
+          <p class="muted">Reflection-led focus</p>
+        {{end}}
+      </div>
+    </section>
+  {{else}}
+    <section class="empty-focus compact-empty">
+      <div class="empty-icon" aria-hidden="true">◎</div>
+      <div>
+        <p class="eyebrow">Nothing active</p>
+        <h2>Start a block before your next session.</h2>
+      </div>
+    </section>
+  {{end}}
+
+  <div class="training-grid">
+    <section class="section-panel" aria-labelledby="blocks-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Your practice history</p>
+          <h2 id="blocks-title">All blocks</h2>
+        </div>
+      </div>
+
+      {{if .Blocks}}
+        <ol class="block-list">
+          {{range .Blocks}}
+            <li class="block-item">
+              <div class="block-item-main">
+                <div class="block-title-row">
+                  <h3>{{.Name}}</h3>
+                  <span class="status-pill status-{{.Status}}">{{.Status}}</span>
+                </div>
+                {{with .Description}}<p>{{.}}</p>{{end}}
+                {{if .Targets}}
+                  <ul class="inline-targets" aria-label="Targets">
+                    {{range .Targets}}
+                      <li>
+                        {{.Label}}
+                        {{if .Threshold}}
+                          <strong>{{.Comparator}} {{.Threshold}}{{if .Unit}} {{.Unit}}{{end}}</strong>
+                        {{else}}
+                          <strong>Reflection check-in</strong>
+                        {{end}}
+                      </li>
+                    {{end}}
+                  </ul>
+                {{end}}
+              </div>
+              {{if eq .Status "active"}}
+                <span class="current-label">Current focus</span>
+              {{else if eq .Status "planned"}}
+                <form class="block-activation-form" method="post" action="/training/{{.ID}}/activate"{{with $.ActiveBlock}} data-confirm="Complete “{{.Name}}” and make this block active?"{{end}}>
+                  <input type="hidden" name="_csrf" value="{{$.CSRFToken}}">
+                  {{with $.ActiveBlock}}
+                    <label class="replace-confirm">
+                      <input type="checkbox" name="replace_active" value="true" required>
+                      <span>Complete “{{.Name}}”</span>
+                    </label>
+                    <button class="button button-small button-secondary" type="submit">Switch focus</button>
+                  {{else}}
+                    <input type="hidden" name="replace_active" value="false">
+                    <button class="button button-small button-secondary" type="submit">Make active</button>
+                  {{end}}
+                </form>
+              {{else}}
+                <span class="current-label">Archived</span>
+              {{end}}
+            </li>
+          {{end}}
+        </ol>
+      {{else}}
+        <div class="empty-state">
+          <p>No training blocks yet.</p>
+          <span>Create your first small, concrete focus.</span>
+        </div>
+      {{end}}
+    </section>
+
+    <section id="new-focus" class="form-panel" aria-labelledby="new-focus-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">New block</p>
+          <h2 id="new-focus-title">Choose one focus</h2>
+        </div>
+      </div>
+
+      <form class="stacked-form" method="post" action="/training" data-training-form>
+        <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+
+        <div class="form-field">
+          <label for="focus-name">Focus name</label>
+          <input id="focus-name" name="name" type="text" maxlength="100" required placeholder="e.g. Arrive early to dragon">
+          <span class="field-help">Short enough to remember in game.</span>
+        </div>
+
+        <div class="form-field">
+          <label for="focus-description">What are you practicing?</label>
+          <textarea id="focus-description" name="description" rows="3" maxlength="800" placeholder="Describe the behavior and why it matters."></textarea>
+        </div>
+
+        <div class="form-field">
+          <label for="focus-reminder">In-game reminder</label>
+          <input id="focus-reminder" name="reminder" type="text" maxlength="160" placeholder="e.g. Reset 60 seconds before spawn">
+        </div>
+
+        <div class="date-grid">
+          <div class="form-field">
+            <label for="start-date">Start date</label>
+            <input id="start-date" name="start_date" type="date" data-start-date>
+          </div>
+          <div class="form-field">
+            <label for="end-date">End date <span class="optional">(optional)</span></label>
+            <input id="end-date" name="end_date" type="date" data-end-date>
+          </div>
+        </div>
+
+        <fieldset class="target-builder">
+          <legend>Measurable target <span class="optional">(optional)</span></legend>
+          <p class="field-help">Use a target only when the match data supports it. Reflection-led goals are welcome.</p>
+          <div class="target-fields">
+            <label class="target-metric">
+              <span>Metric</span>
+              <select name="target_label" data-target-metric>
+                <option value="">No automatic target</option>
+                <option value="Deaths per game">Deaths per game</option>
+                <option value="Vision score per minute">Vision score per minute</option>
+                <option value="Control wards per game">Control wards per game</option>
+              </select>
+            </label>
+            <label>
+              <span>Goal</span>
+              <select name="target_comparator">
+                <option value="<=">At most</option>
+                <option value=">=">At least</option>
+              </select>
+            </label>
+            <label>
+              <span>Value</span>
+              <input name="target_threshold" type="number" min="0" step="0.1" inputmode="decimal" placeholder="5" data-target-value>
+            </label>
+          </div>
+        </fieldset>
+
+        {{with .ActiveBlock}}
+          <input type="hidden" name="replace_active" value="true">
+          <label class="activate-choice">
+            <input type="checkbox" name="activate" value="true">
+            <span>
+              <strong>Complete “{{.Name}}” and make this my active focus</strong>
+              <small>Leave this unchecked to save the new block as a plan.</small>
+            </span>
+          </label>
+        {{else}}
+          <input type="hidden" name="replace_active" value="false">
+          <label class="activate-choice">
+            <input type="checkbox" name="activate" value="true" checked>
+            <span>
+              <strong>Make this my active focus</strong>
+              <small>You can switch to another planned block later.</small>
+            </span>
+          </label>
+        {{end}}
+
+        <button class="button button-primary button-full" type="submit">Create training block</button>
+      </form>
+    </section>
+  </div>
+</div>
+
+{{template "footer" .}}
+{{end}}
