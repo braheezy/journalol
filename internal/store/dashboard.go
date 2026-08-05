@@ -42,6 +42,7 @@ func (s *Store) DashboardStats(ctx context.Context, playerID int64) (*model.Dash
 		FROM matches m
 		JOIN player_match_stats pms ON pms.match_id = m.id
 		WHERE pms.player_id = ? AND m.is_remake = 0
+		  AND m.queue_id IN (400, 420, 440)
 	`, playerID).Scan(
 		&stats.Games, &wins, &averageDeaths, &kda,
 		&visionPerMinute, &controlWards,
@@ -76,6 +77,7 @@ func (s *Store) DashboardStats(ctx context.Context, playerID int64) (*model.Dash
 		  ON mr.match_id = m.id AND mr.player_id = pms.player_id
 		WHERE pms.player_id = ?
 		  AND m.is_remake = 0
+		  AND m.queue_id IN (400, 420, 440)
 		  AND mr.completed_at IS NULL
 	`, playerID).Scan(&stats.PendingReviews); err != nil {
 		return nil, fmt.Errorf("count pending reviews: %w", err)
@@ -99,6 +101,7 @@ func (s *Store) addDeathProgress(ctx context.Context, playerID int64, stats *mod
 		FROM matches m
 		JOIN player_match_stats pms ON pms.match_id = m.id
 		WHERE pms.player_id = ? AND m.is_remake = 0
+		  AND m.queue_id IN (400, 420, 440)
 		ORDER BY m.game_start_at DESC, m.id DESC
 		LIMIT 20
 	`, playerID)
@@ -159,7 +162,9 @@ func (s *Store) addCommonMistakes(ctx context.Context, playerID int64, stats *mo
 		FROM review_annotations ra
 		JOIN mistake_categories mc ON mc.id = ra.category_id
 		JOIN match_reviews mr ON mr.id = ra.review_id
+		JOIN matches m ON m.id = mr.match_id
 		WHERE mr.player_id = ? AND mr.completed_at IS NOT NULL
+		  AND m.queue_id IN (400, 420, 440)
 		GROUP BY mc.id, mc.slug, mc.label, mc.is_active, mc.is_custom
 		ORDER BY COUNT(*) DESC, mc.id
 		LIMIT 5
@@ -194,6 +199,7 @@ func (s *Store) addChampionPerformance(ctx context.Context, playerID int64, stat
 		FROM matches m
 		JOIN player_match_stats pms ON pms.match_id = m.id
 		WHERE pms.player_id = ? AND m.is_remake = 0
+		  AND m.queue_id IN (400, 420, 440)
 		GROUP BY pms.champion_name
 		ORDER BY COUNT(*) DESC, pms.champion_name
 		LIMIT 8

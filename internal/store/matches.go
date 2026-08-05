@@ -82,6 +82,21 @@ func (s *Store) ListMatches(ctx context.Context, filter model.MatchFilter) ([]mo
 		query.WriteString(" AND m.queue_type = ? COLLATE NOCASE")
 		args = append(args, queue)
 	}
+	if len(filter.QueueIDs) > 0 {
+		queueIDs := uniquePositiveQueueIDs(filter.QueueIDs)
+		if len(queueIDs) == 0 {
+			return []model.Match{}, nil
+		}
+		query.WriteString(" AND m.queue_id IN (")
+		for index, queueID := range queueIDs {
+			if index > 0 {
+				query.WriteString(", ")
+			}
+			query.WriteString("?")
+			args = append(args, queueID)
+		}
+		query.WriteString(")")
+	}
 	if filter.Result != nil {
 		query.WriteString(" AND m.is_remake = 0 AND pms.win = ?")
 		args = append(args, boolInt(*filter.Result))
@@ -160,6 +175,22 @@ func (s *Store) ListMatches(ctx context.Context, filter model.MatchFilter) ([]mo
 		return nil, fmt.Errorf("iterate matches: %w", err)
 	}
 	return matches, nil
+}
+
+func uniquePositiveQueueIDs(values []int) []int {
+	unique := make(map[int]struct{}, len(values))
+	queueIDs := make([]int, 0, len(values))
+	for _, value := range values {
+		if value < 1 {
+			continue
+		}
+		if _, ok := unique[value]; ok {
+			continue
+		}
+		unique[value] = struct{}{}
+		queueIDs = append(queueIDs, value)
+	}
+	return queueIDs
 }
 
 // GetMatch returns a match, its display-oriented arrays, and any saved review.

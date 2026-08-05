@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"html/template"
@@ -18,10 +19,29 @@ var assets embed.FS
 
 type Server struct {
 	store        *store.Store
+	syncer       Syncer
 	templates    *template.Template
 	location     *time.Location
 	allowedHosts map[string]struct{}
 	logger       *slog.Logger
+}
+
+// Syncer is the small application-service seam used by the web UI. Keeping the
+// Riot client behind this interface lets handlers request a sync without
+// knowing anything about credentials, retries, or imported payloads.
+type Syncer interface {
+	Sync(ctx context.Context, trigger string) (*store.SyncRun, error)
+}
+
+// Option customizes a Server without making existing NewServer callers supply
+// integrations they do not use.
+type Option func(*Server)
+
+// WithSyncer enables manual Riot sync controls for a configured real profile.
+func WithSyncer(syncer Syncer) Option {
+	return func(server *Server) {
+		server.syncer = syncer
+	}
 }
 
 func NewServer(
@@ -29,6 +49,7 @@ func NewServer(
 	location *time.Location,
 	allowedHosts map[string]struct{},
 	logger *slog.Logger,
+	options ...Option,
 ) (*Server, error) {
 	templates, err := template.New("journalol").Funcs(template.FuncMap{
 		"roleLabel": roleLabel,
@@ -45,13 +66,19 @@ func NewServer(
 		logger = slog.Default()
 	}
 
-	return &Server{
+	server := &Server{
 		store:        dataStore,
 		templates:    templates,
 		location:     location,
 		allowedHosts: allowedHosts,
 		logger:       logger,
-	}, nil
+	}
+	for _, option := range options {
+		if option != nil {
+			option(server)
+		}
+	}
+	return server, nil
 }
 
 func roleLabel(role string) string {
@@ -82,6 +109,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /training", s.training)
 	mux.HandleFunc("POST /training", s.createTrainingBlock)
 	mux.HandleFunc("POST /training/{id}/activate", s.activateTrainingBlock)
+	mux.HandleFunc("POST /sync", s.syncRiotData)
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /readyz", s.ready)
 

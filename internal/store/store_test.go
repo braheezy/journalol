@@ -55,8 +55,8 @@ func TestOpenCreatesRequestedDatabaseAndMigrates(t *testing.T) {
 	if err := store.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if migrationCount != 1 {
-		t.Fatalf("migration count = %d, want 1", migrationCount)
+	if migrationCount != 3 {
+		t.Fatalf("migration count = %d, want 3", migrationCount)
 	}
 	if err := store.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mistake_categories").Scan(&categoryCount); err != nil {
 		t.Fatalf("count categories: %v", err)
@@ -89,8 +89,8 @@ func TestOpenReappliesNoMigrations(t *testing.T) {
 	if err := second.db.QueryRow("SELECT COUNT(*) FROM mistake_categories").Scan(&categoryCount); err != nil {
 		t.Fatalf("count categories: %v", err)
 	}
-	if migrationCount != 1 || categoryCount != 9 {
-		t.Fatalf("after reopen migrations/categories = %d/%d, want 1/9", migrationCount, categoryCount)
+	if migrationCount != 3 || categoryCount != 9 {
+		t.Fatalf("after reopen migrations/categories = %d/%d, want 3/9", migrationCount, categoryCount)
 	}
 }
 
@@ -436,6 +436,53 @@ func TestCompletedReviewNeedsGradeAndReflection(t *testing.T) {
 	}
 }
 
+func TestListMatchesFiltersQueueIDs(t *testing.T) {
+	t.Parallel()
+	store, _ := openTestStore(t)
+	ctx := context.Background()
+	if err := store.SeedDemo(ctx); err != nil {
+		t.Fatal(err)
+	}
+	player, err := store.PrimaryPlayer(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	draft, err := store.ListMatches(ctx, model.MatchFilter{
+		PlayerID: player.ID,
+		QueueIDs: []int{model.QueueNormalDraft},
+		Limit:    100,
+	})
+	if err != nil {
+		t.Fatalf("ListMatches(draft): %v", err)
+	}
+	if len(draft) == 0 {
+		t.Fatal("draft filter returned no demo matches")
+	}
+	for _, match := range draft {
+		if match.QueueID != model.QueueNormalDraft {
+			t.Fatalf("draft match queue ID = %d, want %d", match.QueueID, model.QueueNormalDraft)
+		}
+	}
+
+	ranked, err := store.ListMatches(ctx, model.MatchFilter{
+		PlayerID: player.ID,
+		QueueIDs: []int{model.QueueRankedSolo, model.QueueRankedFlex},
+		Limit:    100,
+	})
+	if err != nil {
+		t.Fatalf("ListMatches(ranked): %v", err)
+	}
+	if len(ranked) == 0 {
+		t.Fatal("ranked filter returned no demo matches")
+	}
+	for _, match := range ranked {
+		if match.QueueID != model.QueueRankedSolo && match.QueueID != model.QueueRankedFlex {
+			t.Fatalf("ranked match queue ID = %d", match.QueueID)
+		}
+	}
+}
+
 func TestManualTargetCheckinRoundTripAndCanonicalValidation(t *testing.T) {
 	t.Parallel()
 	store, _ := openTestStore(t)
@@ -730,9 +777,9 @@ func TestLocationAwareActivationUsesLocalDateBoundaries(t *testing.T) {
 	for _, fixture := range fixtures {
 		result, err := store.db.ExecContext(ctx, `
 			INSERT INTO matches (
-				riot_match_id, game_start_at, game_end_at, duration_seconds,
+				riot_match_id, queue_id, game_start_at, game_end_at, duration_seconds,
 				imported_at, updated_at
-			) VALUES (?, ?, ?, 1800, ?, ?)
+			) VALUES (?, 420, ?, ?, 1800, ?, ?)
 		`, fixture.id, fixture.started.Unix(), fixture.started.Add(30*time.Minute).Unix(),
 			fixture.started.Unix(), fixture.started.Unix())
 		if err != nil {

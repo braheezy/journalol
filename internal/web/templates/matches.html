@@ -32,6 +32,16 @@
         </select>
       </label>
       <label>
+        <span>Queue</span>
+        <select name="queue">
+          <option value="both"{{if or (eq .Filters.Queue "") (eq .Filters.Queue "both")}} selected{{end}}>Both</option>
+          <option value="ranked"{{if eq .Filters.Queue "ranked"}} selected{{end}}>Ranked</option>
+          <option value="draft"{{if eq .Filters.Queue "draft"}} selected{{end}}>Normal Draft</option>
+          <option value="solo"{{if eq .Filters.Queue "solo"}} selected{{end}}>Ranked Solo/Duo</option>
+          <option value="flex"{{if eq .Filters.Queue "flex"}} selected{{end}}>Ranked Flex</option>
+        </select>
+      </label>
+      <label>
         <span>Result</span>
         <select name="result">
           <option value="">Any result</option>

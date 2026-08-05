@@ -11,6 +11,52 @@
     <a class="button button-secondary" href="/training">Plan your focus</a>
   </section>
 
+  {{with .SyncStatus}}
+    <section class="sync-card" aria-labelledby="riot-sync-title">
+      <div class="sync-copy">
+        <div class="sync-heading">
+          <div>
+            <p class="eyebrow">Riot data</p>
+            <h2 id="riot-sync-title">Match sync</h2>
+          </div>
+          <span class="sync-state sync-state-{{.StateClass}}">{{.StateLabel}}</span>
+        </div>
+        <p class="sync-message">{{.Message}}</p>
+
+        {{if .HasRun}}
+          <dl class="sync-counts" aria-label="Latest sync results">
+            <div>
+              <dt>Found</dt>
+              <dd>{{.DiscoveredCount}}</dd>
+            </div>
+            <div>
+              <dt>Imported</dt>
+              <dd>{{.ImportedCount}}</dd>
+            </div>
+            <div>
+              <dt>Unchanged</dt>
+              <dd>{{.SkippedCount}}</dd>
+            </div>
+            <div>
+              <dt>Failed</dt>
+              <dd>{{.FailedCount}}</dd>
+            </div>
+          </dl>
+        {{end}}
+      </div>
+
+      <div class="sync-actions">
+        {{with .CompletedLabel}}<p>Last completed <time>{{.}}</time></p>{{end}}
+        {{if .CanSync}}
+          <form method="post" action="/sync">
+            <input type="hidden" name="_csrf" value="{{$.CSRFToken}}">
+            <button class="button button-secondary" type="submit">Sync now</button>
+          </form>
+        {{end}}
+      </div>
+    </section>
+  {{end}}
+
   {{with .ActiveBlock}}
     <section class="focus-card" aria-labelledby="active-focus-title">
       <div class="focus-card-main">
@@ -148,7 +194,7 @@
     {{else}}
       <div class="empty-state">
         <p>No matches yet.</p>
-        <span>Riot import arrives in a later milestone; demo mode provides sample games for now.</span>
+        <span>Your recent match history will appear here after it is imported.</span>
       </div>
     {{end}}
   </section>

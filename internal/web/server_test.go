@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"journalol/internal/model"
 	"journalol/internal/store"
 )
 
@@ -37,6 +39,7 @@ func TestDemoPagesRender(t *testing.T) {
 	}{
 		{path: "/", marker: "Today’s practice"},
 		{path: "/matches", marker: "Match history"},
+		{path: "/matches?queue=ranked", marker: "Ranked Solo/Duo"},
 		{path: "/training", marker: "Training blocks"},
 		{path: fmt.Sprintf("/matches/%d", matches[0].ID), marker: "One-minute reflection"},
 		{path: "/static/app.css", marker: "--paper"},
@@ -307,6 +310,157 @@ func TestFutureTrainingBlockCannotActivateOrLeaveResidue(t *testing.T) {
 	}
 }
 
+func TestManualRiotSync(t *testing.T) {
+	syncService := &stubSyncer{run: &store.SyncRun{}}
+	handler, _ := newRealHandler(t, syncService)
+
+	getResponse := performRequest(handler, http.MethodGet, "/", nil, nil)
+	if getResponse.Code != http.StatusOK {
+		t.Fatalf("dashboard status = %d, want %d; body: %s",
+			getResponse.Code, http.StatusOK, getResponse.Body.String())
+	}
+	if !strings.Contains(getResponse.Body.String(), "Sync now") {
+		t.Fatalf("configured dashboard did not show manual sync: %s", getResponse.Body.String())
+	}
+	csrfCookie := responseCookie(t, getResponse, csrfCookieName)
+
+	response := performRequest(
+		handler,
+		http.MethodPost,
+		"/sync",
+		url.Values{"_csrf": {csrfCookie.Value}},
+		csrfCookie,
+	)
+	if response.Code != http.StatusSeeOther {
+		t.Fatalf("sync status = %d, want %d; body: %s",
+			response.Code, http.StatusSeeOther, response.Body.String())
+	}
+	if location := response.Header().Get("Location"); location != "/?flash=sync-complete" {
+		t.Fatalf("sync redirect location = %q", location)
+	}
+	if len(syncService.triggers) != 1 || syncService.triggers[0] != "manual" {
+		t.Fatalf("sync triggers = %v, want [manual]", syncService.triggers)
+	}
+}
+
+func TestManualRiotSyncFailureIsSanitized(t *testing.T) {
+	const sensitiveDetail = "RGAPI-never-render-this upstream response"
+	syncService := &stubSyncer{err: errors.New(sensitiveDetail)}
+	handler, _ := newRealHandler(t, syncService)
+
+	getResponse := performRequest(handler, http.MethodGet, "/", nil, nil)
+	csrfCookie := responseCookie(t, getResponse, csrfCookieName)
+	response := performRequest(
+		handler,
+		http.MethodPost,
+		"/sync",
+		url.Values{"_csrf": {csrfCookie.Value}},
+		csrfCookie,
+	)
+
+	if response.Code != http.StatusBadGateway {
+		t.Fatalf("failed sync status = %d, want %d; body: %s",
+			response.Code, http.StatusBadGateway, response.Body.String())
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, "Riot sync could not finish") {
+		t.Fatalf("failed sync did not render useful generic error: %s", body)
+	}
+	if strings.Contains(body, sensitiveDetail) {
+		t.Fatalf("failed sync leaked upstream detail: %s", body)
+	}
+}
+
+func TestManualPartialRiotSyncUsesHonestFlash(t *testing.T) {
+	syncService := &stubSyncer{run: &store.SyncRun{State: store.SyncStatePartial}}
+	handler, _ := newRealHandler(t, syncService)
+	getResponse := performRequest(handler, http.MethodGet, "/", nil, nil)
+	csrfCookie := responseCookie(t, getResponse, csrfCookieName)
+
+	response := performRequest(
+		handler,
+		http.MethodPost,
+		"/sync",
+		url.Values{"_csrf": {csrfCookie.Value}},
+		csrfCookie,
+	)
+	if response.Code != http.StatusSeeOther ||
+		response.Header().Get("Location") != "/?flash=sync-partial" {
+		t.Fatalf("partial sync response = %d %q, want 303 partial flash",
+			response.Code, response.Header().Get("Location"))
+	}
+}
+
+func TestSyncControlsStayHiddenWithoutRealIntegration(t *testing.T) {
+	demoHandler, _ := newDemoHandler(t)
+	demoResponse := performRequest(demoHandler, http.MethodGet, "/", nil, nil)
+	if strings.Contains(demoResponse.Body.String(), "Match sync") ||
+		strings.Contains(demoResponse.Body.String(), "Sync now") {
+		t.Fatalf("demo dashboard unexpectedly showed Riot sync controls: %s", demoResponse.Body.String())
+	}
+
+	realHandler, _ := newRealHandler(t, nil)
+	realResponse := performRequest(realHandler, http.MethodGet, "/", nil, nil)
+	if strings.Contains(realResponse.Body.String(), "Sync now") {
+		t.Fatalf("dashboard without a sync service showed manual control: %s", realResponse.Body.String())
+	}
+	if !strings.Contains(realResponse.Body.String(), "Match sync") {
+		t.Fatalf("real dashboard did not show sync status: %s", realResponse.Body.String())
+	}
+}
+
+func TestDashboardShowsLatestSyncWithoutStoredErrorDetail(t *testing.T) {
+	handler, dataStore := newRealHandler(t, &stubSyncer{run: &store.SyncRun{}})
+	ctx := context.Background()
+	player, err := dataStore.PrimaryPlayer(ctx)
+	if err != nil {
+		t.Fatalf("load primary player: %v", err)
+	}
+	run, err := dataStore.StartSyncRun(ctx, store.SyncRunStart{
+		PlayerID:  player.ID,
+		Trigger:   store.SyncTriggerPoll,
+		StartedAt: time.Date(2026, time.July, 28, 15, 59, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("start sync run: %v", err)
+	}
+	const storedDetail = "internal-provider-detail-must-not-render"
+	if err := dataStore.FinishSyncRun(ctx, run.ID, store.SyncRunFinish{
+		State:           store.SyncStateFailed,
+		DiscoveredCount: 6,
+		ImportedCount:   2,
+		SkippedCount:    3,
+		FailedCount:     1,
+		ErrorCode:       "upstream_failure",
+		ErrorMessage:    storedDetail,
+		CompletedAt:     time.Date(2026, time.July, 28, 16, 5, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("finish sync run: %v", err)
+	}
+
+	response := performRequest(handler, http.MethodGet, "/", nil, nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("dashboard status = %d, want %d; body: %s",
+			response.Code, http.StatusOK, response.Body.String())
+	}
+	body := response.Body.String()
+	for _, marker := range []string{
+		"Needs attention",
+		"Jul 28, 4:05 PM",
+		"<dd>6</dd>",
+		"<dd>2</dd>",
+		"<dd>3</dd>",
+		"<dd>1</dd>",
+	} {
+		if !strings.Contains(body, marker) {
+			t.Fatalf("dashboard did not contain sync marker %q: %s", marker, body)
+		}
+	}
+	if strings.Contains(body, storedDetail) {
+		t.Fatalf("dashboard leaked stored sync error detail: %s", body)
+	}
+}
+
 func newDemoHandler(t *testing.T) (http.Handler, *store.Store) {
 	t.Helper()
 
@@ -334,6 +488,57 @@ func newDemoHandler(t *testing.T) (http.Handler, *store.Store) {
 		t.Fatalf("create server: %v", err)
 	}
 	return server.Handler(), dataStore
+}
+
+func newRealHandler(t *testing.T, syncService Syncer) (http.Handler, *store.Store) {
+	t.Helper()
+
+	dataStore, err := store.Open(filepath.Join(t.TempDir(), "journalol.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := dataStore.Close(); err != nil {
+			t.Errorf("close store: %v", err)
+		}
+	})
+	if _, err := dataStore.SavePrimaryPlayer(context.Background(), model.PlayerProfile{
+		GameName:      "Practice Player",
+		TagLine:       "NA1",
+		PlatformRoute: "NA1",
+		RegionalRoute: "AMERICAS",
+		PUUID:         "test-real-puuid",
+	}); err != nil {
+		t.Fatalf("save real player: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	options := []Option{}
+	if syncService != nil {
+		options = append(options, WithSyncer(syncService))
+	}
+	server, err := NewServer(
+		dataStore,
+		time.UTC,
+		map[string]struct{}{"localhost": {}},
+		logger,
+		options...,
+	)
+	if err != nil {
+		t.Fatalf("create server: %v", err)
+	}
+	return server.Handler(), dataStore
+}
+
+type stubSyncer struct {
+	run      *store.SyncRun
+	err      error
+	triggers []string
+}
+
+func (s *stubSyncer) Sync(_ context.Context, trigger string) (*store.SyncRun, error) {
+	s.triggers = append(s.triggers, trigger)
+	return s.run, s.err
 }
 
 func performRequest(

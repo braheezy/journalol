@@ -151,6 +151,31 @@ type Match struct {
 	ReviewComplete  bool
 }
 
+// Queue IDs included in Journalol's training history. Keeping the scope small
+// makes practice trends comparable: Normal Draft and the two ranked
+// Summoner's Rift queues share the same basic game structure.
+const (
+	QueueNormalDraft = 400
+	QueueRankedSolo  = 420
+	QueueRankedFlex  = 440
+)
+
+// TrainingQueueIDs returns a fresh list so callers can safely use it when
+// building a query without changing Journalol's supported queue set.
+func TrainingQueueIDs() []int {
+	return []int{QueueNormalDraft, QueueRankedSolo, QueueRankedFlex}
+}
+
+// IsTrainingQueue reports whether a Riot queue belongs in the journal.
+func IsTrainingQueue(queueID int) bool {
+	switch queueID {
+	case QueueNormalDraft, QueueRankedSolo, QueueRankedFlex:
+		return true
+	default:
+		return false
+	}
+}
+
 // KDA returns the conventional per-match KDA while keeping the raw K/D/A
 // available for display.
 func (m Match) KDA() float64 {
@@ -182,6 +207,7 @@ type MatchFilter struct {
 	Champion        string
 	Role            string
 	QueueType       string
+	QueueIDs        []int
 	Result          *bool
 	From            *time.Time
 	To              *time.Time
@@ -334,6 +360,51 @@ type TargetResult struct {
 	EvaluatorVersion int
 	IsCurrent        bool
 	EvaluatedAt      time.Time
+}
+
+// DeathEvent is one imported death for the primary player. TimestampMS is the
+// replay clock, so it can be used to create a review clip without guessing from
+// a wall-clock timestamp.
+type DeathEvent struct {
+	SequenceNumber int
+	TimestampMS    int64
+	PositionX      *int
+	PositionY      *int
+}
+
+// ReplaySubject identifies the primary player's champion in League's replay
+// participant ordering. Spectator focus keys are derived from ParticipantID;
+// TeamID is retained so corrupt or unexpected ordering is rejected rather than
+// focusing somebody else's champion.
+type ReplaySubject struct {
+	ParticipantID int
+	TeamID        int
+	Champion      string
+}
+
+const (
+	DeathClipRecording = "recording"
+	DeathClipReady     = "ready"
+	DeathClipFailed    = "failed"
+)
+
+// DeathClip records a rendered local replay clip. Source and output paths are
+// deliberately local-only; neither is exposed through the browser or MCP.
+type DeathClip struct {
+	ID             int64
+	MatchID        int64
+	TimelineSeq    int
+	DeathIndex     int
+	DeathTimestamp int64
+	StartTimestamp int64
+	EndTimestamp   int64
+	ReplayPath     string
+	OutputPath     string
+	Codec          string
+	Status         string
+	ErrorMessage   string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // NormalizeText trims form values without changing intentional internal

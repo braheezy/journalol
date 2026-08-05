@@ -3,7 +3,7 @@ JOURNALOL_DB_PATH ?= ./journalol.db
 JOURNALOL_TIMEZONE ?= UTC
 JOURNALOL_DEMO ?= true
 
-.PHONY: run demo build test fmt vet check docker-up docker-down docker-logs
+.PHONY: run demo mcp build test fmt vet check docker-up docker-down docker-logs
 
 run:
 	JOURNALOL_ADDR="$(JOURNALOL_ADDR)" \
@@ -18,6 +18,12 @@ demo:
 	JOURNALOL_TIMEZONE="$(JOURNALOL_TIMEZONE)" \
 	JOURNALOL_DEMO=true \
 	go run ./cmd/journalol
+
+mcp:
+	JOURNALOL_DB_PATH="$(JOURNALOL_DB_PATH)" \
+	JOURNALOL_TIMEZONE="$(JOURNALOL_TIMEZONE)" \
+	JOURNALOL_DEMO="$(JOURNALOL_DEMO)" \
+	go run ./cmd/journalol mcp
 
 build:
 	mkdir -p bin

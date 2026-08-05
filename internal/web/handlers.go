@@ -25,7 +25,11 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.renderStoreError(w, r, err)
 		return
 	}
-	matches, err := s.store.RecentMatches(r.Context(), player.ID, 6)
+	matches, err := s.store.ListMatches(r.Context(), model.MatchFilter{
+		PlayerID: player.ID,
+		QueueIDs: model.TrainingQueueIDs(),
+		Limit:    6,
+	})
 	if err != nil {
 		s.renderStoreError(w, r, err)
 		return
@@ -36,6 +40,16 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var syncStatus *syncStatusView
+	if !player.IsDemo {
+		latestSync, latestErr := s.store.LatestSyncRun(r.Context(), player.ID)
+		if latestErr != nil && !errors.Is(latestErr, store.ErrNotFound) {
+			s.renderStoreError(w, r, latestErr)
+			return
+		}
+		syncStatus = newSyncStatusView(latestSync, s.location, s.syncer != nil)
+	}
+
 	s.localizeMatches(matches)
 	data := pageData{
 		Title:       "Dashboard",
@@ -44,9 +58,41 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		ActiveBlock: activeBlock,
 		Summary:     newSummaryView(stats),
 		Matches:     matches,
+		SyncStatus:  syncStatus,
 		Flash:       flashMessage(r),
 	}
 	s.render(w, http.StatusOK, "dashboard", data)
+}
+
+func (s *Server) syncRiotData(w http.ResponseWriter, r *http.Request) {
+	player, err := s.store.PrimaryPlayer(r.Context())
+	if err != nil {
+		s.renderStoreError(w, r, err)
+		return
+	}
+	if player.IsDemo || s.syncer == nil {
+		s.renderError(w, r, http.StatusNotFound, "Sync unavailable", "Riot sync is not configured for this profile.")
+		return
+	}
+
+	run, err := s.syncer.Sync(r.Context(), store.SyncTriggerManual)
+	if err != nil {
+		s.logger.ErrorContext(r.Context(), "manual Riot sync failed", "error", err)
+		s.renderError(
+			w,
+			r,
+			http.StatusBadGateway,
+			"Riot sync could not finish",
+			"Your saved games were not removed. Check that your Riot API key is current, then try again.",
+		)
+		return
+	}
+
+	flash := "sync-complete"
+	if run != nil && run.State == store.SyncStatePartial {
+		flash = "sync-partial"
+	}
+	http.Redirect(w, r, "/?flash="+flash, http.StatusSeeOther)
 }
 
 func (s *Server) matches(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +122,7 @@ func (s *Server) matches(w http.ResponseWriter, r *http.Request) {
 		Filters: matchFilterView{
 			Champion: r.URL.Query().Get("champion"),
 			Role:     r.URL.Query().Get("role"),
+			Queue:    queueScopeFromRequest(r),
 			Result:   r.URL.Query().Get("result"),
 			Notes:    r.URL.Query().Get("q"),
 		},
@@ -425,6 +472,20 @@ func matchFilterFromRequest(r *http.Request, playerID int64) (model.MatchFilter,
 	if tooLong(filter.Champion, 100) || tooLong(filter.Role, 32) || tooLong(filter.NotesQuery, 200) {
 		return model.MatchFilter{}, errors.New("one of the filters is too long")
 	}
+	switch queueScopeFromRequest(r) {
+	case "", "both":
+		filter.QueueIDs = model.TrainingQueueIDs()
+	case "ranked":
+		filter.QueueIDs = []int{model.QueueRankedSolo, model.QueueRankedFlex}
+	case "draft":
+		filter.QueueIDs = []int{model.QueueNormalDraft}
+	case "solo":
+		filter.QueueIDs = []int{model.QueueRankedSolo}
+	case "flex":
+		filter.QueueIDs = []int{model.QueueRankedFlex}
+	default:
+		return model.MatchFilter{}, errors.New("queue must be both, ranked, draft, solo, or flex")
+	}
 	switch r.URL.Query().Get("result") {
 	case "":
 	case "win":
@@ -437,6 +498,10 @@ func matchFilterFromRequest(r *http.Request, playerID int64) (model.MatchFilter,
 		return model.MatchFilter{}, errors.New("result must be win or loss")
 	}
 	return filter, nil
+}
+
+func queueScopeFromRequest(r *http.Request) string {
+	return strings.ToLower(strings.TrimSpace(r.URL.Query().Get("queue")))
 }
 
 func positivePathID(r *http.Request) (int64, error) {
@@ -566,6 +631,10 @@ func flashMessage(r *http.Request) string {
 		return "Training block created."
 	case "block-activated":
 		return "Training focus activated."
+	case "sync-complete":
+		return "Riot data is up to date."
+	case "sync-partial":
+		return "Riot sync finished. Some match details will be retried."
 	default:
 		return ""
 	}

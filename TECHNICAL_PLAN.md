@@ -1,8 +1,8 @@
 # Journalol technical implementation plan
 
-Status: proposed  
+Status: living plan; foundation, Riot import, MCP coach context, and replay capture implemented
 Based on: [`prompt.md`](./prompt.md)  
-Last reviewed: 2026-07-26
+Last reviewed: 2026-08-02
 
 ## 1. Product outcome
 
@@ -34,12 +34,13 @@ progress for an active training block.
 - Match list, detail, filters, note search, and annotations.
 - Dashboard trends for 10, 20, and 50 eligible games.
 - Champion pool and session planning.
+- Optional host-side death clips from a replay the player downloaded locally.
 - JSON/CSV export plus safe SQLite backup and restore.
 - Docker Compose setup and complete local documentation.
 
 ### Deferred
 
-- Optional post-session AI coaching.
+- Embedded provider-backed AI chat and autonomous coach write actions.
 - Multiple profiles, accounts, or cloud sync.
 - Riot Sign On (RSO), which is unnecessary for a private single-user app.
 - Live Client API, spectator integration, live overlays, or advice during play.
@@ -84,7 +85,11 @@ flowchart LR
     D --> S[SQLite repositories]
     A --> S
     R --> C[Account-V1 / Match-V5 / Data Dragon]
-    D -. structured context .-> AI[Optional coach adapter]
+    D -. read-only structured context .-> MCP[Local MCP coach adapter]
+    MCP -. player-authorized tools .-> AI[ChatGPT desktop]
+    H[Host capture CLI] --> G[Local League replay game]
+    H --> S
+    G --> H
 ```
 
 The application has four important boundaries:
@@ -96,8 +101,8 @@ The application has four important boundaries:
 - **Persistence boundary:** repositories and transaction helpers isolate
   SQLite. Domain services do not issue ad hoc SQL.
 - **Analysis boundary:** the metric service produces structured, attributable
-  observations. Dashboard summaries and a future AI coach consume the same
-  facts.
+  observations. Dashboard summaries and the read-only MCP coach consume the
+  same facts. Any future provider-backed coach must use this same boundary.
 
 Use interfaces at external or test-sensitive boundaries (`RiotClient`,
 repositories, clock, secret store, and later `CoachProvider`). Avoid an
@@ -121,6 +126,9 @@ internal/
   importer/               # discovery, jobs, raw storage, normalization
   metrics/                # registry, evaluators, trends, summaries
   background/             # polling scheduler
+  capture/                # death-event planning and managed capture lifecycle
+  replay/                 # loopback Replay API and macOS game launcher
+  leagueconfig/           # reversible game.cfg transaction and recovery
   store/sqlite/           # repositories and generated queries
   export/                 # JSON, CSV, backup, restore
   web/                    # handlers, middleware, view models
@@ -584,7 +592,7 @@ services:
     ports:
       - "127.0.0.1:${JOURNALOL_PORT:-8080}:8080"
     volumes:
-      - journalol-data:/data
+      - ${JOURNALOL_DATA_DIR:-./data}:/data
     environment:
       JOURNALOL_DB_PATH: /data/journalol.db
       JOURNALOL_TIMEZONE: ${JOURNALOL_TIMEZONE:-UTC}
@@ -592,17 +600,15 @@ services:
     healthcheck:
       test: [CMD, /app/journalol, healthcheck]
 
-volumes:
-  journalol-data:
 ```
 
 Use a multi-stage Go build and a non-root runtime image. Embed migrations,
 templates, and application static files. Cache downloaded Data Dragon data
 under `/data/cache`; the database and secrets live in separate paths under
 `/data`. `POST /api/v1/backups` creates a consistent snapshot and streams it to
-the browser as a downloadable attachment, so the only copy is not trapped in
-the application volume. An optional `JOURNALOL_BACKUP_DIR` may point at a
-separately mounted host directory for scheduled copies.
+the browser as a downloadable attachment. The default `./data` bind mount is
+already a portable local copy; an optional `JOURNALOL_BACKUP_DIR` may point at
+a separate host directory for scheduled copies.
 
 SQLite startup settings:
 
@@ -629,12 +635,56 @@ JSON export contains normalized user data and can optionally include decompresse
 raw payloads. CSV exports flat match/metric/review views. Neither format includes
 secrets.
 
+### Host replay capture helper
+
+Replay video is a host-only CLI workflow, not another container or web service.
+The game process, downloaded `.rofl`, macOS application bundle, and loopback
+Replay API all live on the player's desktop. The containerized web app remains
+unaware of League installation paths and process control.
+
+For each requested match, the capture flow:
+
+1. Validates the Journalol match, imported primary-player death events, and
+   normalized `.rofl` filename, then derives the player's spectator slot from
+   the imported participant and team IDs.
+2. Checks macOS event-synthesis permission before opening League. This is used
+   only to send the replay's participant-focus key directly to the owned game
+   PID; a denied permission aborts rather than producing a misleading clip.
+3. Takes an advisory capture lock and writes a durable, checksummed copy of the
+   exact original `game.cfg` under the Journalol data directory.
+4. Temporarily enables `EnableReplayApi`, disables Directed Camera, selects
+   windowed mode, and applies a small capture resolution.
+5. Launches the nested macOS League game binary with the downloaded replay and
+   the installed client's own platform, region, and locale.
+6. Requires the Replay API process ID to equal the owned launch PID, then
+   explicitly seeks and pauses at each clip start. It switches to top-down
+   render mode and uses the participant's native spectator double-key action
+   to select and follow the champion. Replay API object attachment is not used
+   as a proxy for spectator follow.
+7. Starts recording through Riot's loopback Replay API, waits until recording
+   reports active, then reapplies the native follow action after the encoder's
+   second replay reconstruction. It validates a non-empty final WebM, persists
+   clip status, and aborts an encoder that stops growing.
+8. Terminates only the verified owned game process, waits for exit, then
+   restores `game.cfg` byte-for-byte. Ctrl-C uses an independent cleanup
+   context; `capture restore-config` recovers after a hard process kill.
+
+Journalol never parses or downloads replay payloads and does not automate the
+League launcher account session. A downloaded replay can become incompatible
+after a game patch; that is a local availability failure, not missing match
+data. The helper is not headless: League still renders and consumes GPU. On
+macOS, assigning the game bundle to a dedicated Space is the supported way to
+keep the small replay window away from the active desktop.
+
 ## 12. Optional AI coach
 
-AI remains disabled and absent from core workflows until the deterministic
-product is useful. The early architecture preserves the option through raw
-payload retention, versioned metrics, stable evidence IDs, and application
-service boundaries.
+Provider-backed model generation remains disabled and absent from core
+workflows until the deterministic product is useful. The implemented local,
+read-only MCP adapter lets a player-authorized ChatGPT desktop conversation
+request structured Journalol context without storing a model credential or
+granting write access. Raw payload retention, versioned metrics, stable evidence
+IDs, and application-service boundaries preserve the option for a later
+embedded provider.
 
 The first AI feature should be an on-demand post-session summary, not an
 open-ended chat and not live advice.
@@ -702,7 +752,7 @@ Deliver:
 Exit criteria:
 
 - `docker compose up --build` opens a healthy local page.
-- A fresh volume migrates automatically.
+- A fresh database migrates automatically.
 - Restart and graceful shutdown do not corrupt the database.
 
 ### Phase 1 — offline vertical slice

@@ -451,6 +451,7 @@ func activateTrainingBlockTx(
 		  ON mtb.match_id = m.id AND mtb.player_id = pms.player_id
 		WHERE pms.player_id = ?
 		  AND mtb.match_id IS NULL
+		  AND m.queue_id IN (400, 420, 440)
 		  AND m.game_start_at >= ?
 		  AND (? IS NULL OR m.game_start_at < ?)
 	`, blockID, nowUnix, playerID, bounds.startUnix,
@@ -643,6 +644,7 @@ func recomputeBlockTargetResults(ctx context.Context, tx *sql.Tx, blockID int64)
 		JOIN player_match_stats pms
 		  ON pms.match_id = mtb.match_id AND pms.player_id = mtb.player_id
 		WHERE tt.block_id = ?
+		  AND m.queue_id IN (400, 420, 440)
 		  AND tt.target_type = 'automatic'
 		  AND tt.aggregation = 'per_game'
 		ORDER BY tt.id, m.id

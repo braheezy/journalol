@@ -262,6 +262,15 @@ func setRuntimeEnvironment(t *testing.T, databasePath string, demo bool) {
 	t.Setenv("JOURNALOL_DB_PATH", databasePath)
 	t.Setenv("JOURNALOL_TIMEZONE", "UTC")
 	t.Setenv("JOURNALOL_ALLOWED_HOSTS", "")
+	t.Setenv("RIOT_API_KEY", "")
+	t.Setenv("RIOT_API_KEY_FILE", "")
+	t.Setenv("JOURNALOL_RIOT_GAME_NAME", "")
+	t.Setenv("JOURNALOL_RIOT_TAG_LINE", "")
+	t.Setenv("JOURNALOL_RIOT_PLATFORM_ROUTE", "")
+	t.Setenv("JOURNALOL_RIOT_REGIONAL_ROUTE", "")
+	t.Setenv("JOURNALOL_RIOT_HISTORY_LIMIT", "")
+	t.Setenv("JOURNALOL_RIOT_POLL_INTERVAL", "")
+	t.Setenv("JOURNALOL_RIOT_SYNC_ON_START", "")
 	if demo {
 		t.Setenv("JOURNALOL_DEMO", "true")
 	} else {

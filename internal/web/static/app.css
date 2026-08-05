@@ -333,6 +333,119 @@ h3 {
   font-size: clamp(2.6rem, 5vw, 4rem);
 }
 
+.sync-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 28px;
+  padding: 22px 25px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgb(252 252 248 / 72%);
+}
+
+.sync-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.sync-heading > div {
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+}
+
+.sync-heading .eyebrow,
+.sync-heading h2 {
+  margin-bottom: 0;
+}
+
+.sync-heading h2 {
+  font-size: 1.3rem;
+}
+
+.sync-state {
+  display: inline-flex;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: var(--surface-muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.sync-state-success {
+  border-color: #cfddcf;
+  color: var(--moss);
+  background: var(--moss-wash);
+}
+
+.sync-state-partial,
+.sync-state-running {
+  border-color: #e5d8bc;
+  color: var(--amber);
+  background: #f8f2e7;
+}
+
+.sync-state-failed {
+  border-color: #e1c9c6;
+  color: var(--rose);
+  background: var(--rose-pale);
+}
+
+.sync-message {
+  margin: 7px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.83rem;
+}
+
+.sync-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 19px;
+  margin: 14px 0 0;
+}
+
+.sync-counts > div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.sync-counts dt {
+  color: var(--ink-faint);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.sync-counts dd {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.sync-actions {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.sync-actions p {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.sync-actions form {
+  margin: 0;
+}
+
 .button {
   display: inline-flex;
   justify-content: center;
@@ -1780,6 +1893,17 @@ textarea + .field-help {
     gap: 19px;
   }
 
+  .sync-card {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .sync-actions {
+    align-items: flex-start;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+  }
+
   .dashboard-intro .button,
   .training-heading .button {
     display: none;
@@ -1959,6 +2083,18 @@ textarea + .field-help {
 
   .empty-focus .button {
     justify-self: start;
+  }
+
+  .sync-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .sync-heading > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
   }
 
   .metric-grid {

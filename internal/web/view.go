@@ -3,8 +3,10 @@ package web
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"journalol/internal/model"
+	"journalol/internal/store"
 )
 
 type pageData struct {
@@ -20,6 +22,7 @@ type pageData struct {
 	Categories    []model.MistakeCategory
 	Blocks        []model.TrainingBlock
 	Filters       matchFilterView
+	SyncStatus    *syncStatusView
 	Flash         string
 	Error         string
 	FormError     string
@@ -54,8 +57,70 @@ type manualTargetView struct {
 type matchFilterView struct {
 	Champion string
 	Role     string
+	Queue    string
 	Result   string
 	Notes    string
+}
+
+type syncStatusView struct {
+	HasRun          bool
+	CanSync         bool
+	StateClass      string
+	StateLabel      string
+	CompletedLabel  string
+	Message         string
+	DiscoveredCount int
+	ImportedCount   int
+	SkippedCount    int
+	FailedCount     int
+}
+
+func newSyncStatusView(run *store.SyncRun, location *time.Location, canSync bool) *syncStatusView {
+	status := &syncStatusView{
+		CanSync:    canSync,
+		StateClass: "idle",
+		StateLabel: "Not synced yet",
+		Message:    "Bring in recent matches from Riot when you are ready.",
+	}
+	if run == nil {
+		return status
+	}
+
+	status.HasRun = true
+	status.DiscoveredCount = run.DiscoveredCount
+	status.ImportedCount = run.ImportedCount
+	status.SkippedCount = run.SkippedCount
+	status.FailedCount = run.FailedCount
+	if run.CompletedAt != nil {
+		if location == nil {
+			location = time.UTC
+		}
+		status.CompletedLabel = run.CompletedAt.In(location).Format("Jan 2, 3:04 PM")
+	}
+
+	switch run.State {
+	case store.SyncStateSucceeded:
+		status.StateClass = "success"
+		status.StateLabel = "Up to date"
+		status.Message = "The latest Riot match history was checked successfully."
+	case store.SyncStatePartial:
+		status.StateClass = "partial"
+		status.StateLabel = "Partially updated"
+		status.Message = "Some matches could not be updated. It is safe to try the sync again."
+	case store.SyncStateFailed:
+		status.StateClass = "failed"
+		status.StateLabel = "Needs attention"
+		status.Message = "Riot data could not be refreshed. Check that your API key is current, then try again."
+	case store.SyncStateRunning:
+		status.StateClass = "running"
+		status.StateLabel = "Syncing"
+		status.Message = "Recent Riot matches are being checked now."
+	default:
+		status.StateClass = "idle"
+		status.StateLabel = "Last sync recorded"
+		status.Message = "The most recent sync has an unknown state. It is safe to try again."
+	}
+	return status
 }
 
 func newSummaryView(stats *model.DashboardStats) *summaryView {

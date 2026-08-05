@@ -5,19 +5,24 @@ services:
     ports:
       - "127.0.0.1:${JOURNALOL_PORT:-8080}:8080"
     volumes:
-      - journalol-data:/data
+      - ${JOURNALOL_DATA_DIR:-./data}:/data
     environment:
       JOURNALOL_ADDR: 0.0.0.0:8080
       JOURNALOL_DB_PATH: /data/journalol.db
       JOURNALOL_TIMEZONE: ${JOURNALOL_TIMEZONE:-UTC}
       JOURNALOL_DEMO: ${JOURNALOL_DEMO:-true}
+      RIOT_API_KEY: ${RIOT_API_KEY:-}
+      JOURNALOL_RIOT_GAME_NAME: ${JOURNALOL_RIOT_GAME_NAME:-}
+      JOURNALOL_RIOT_TAG_LINE: ${JOURNALOL_RIOT_TAG_LINE:-}
+      JOURNALOL_RIOT_PLATFORM_ROUTE: ${JOURNALOL_RIOT_PLATFORM_ROUTE:-}
+      JOURNALOL_RIOT_REGIONAL_ROUTE: ${JOURNALOL_RIOT_REGIONAL_ROUTE:-}
+      JOURNALOL_RIOT_HISTORY_LIMIT: ${JOURNALOL_RIOT_HISTORY_LIMIT:-20}
+      JOURNALOL_RIOT_POLL_INTERVAL: ${JOURNALOL_RIOT_POLL_INTERVAL:-5m}
+      JOURNALOL_RIOT_SYNC_ON_START: ${JOURNALOL_RIOT_SYNC_ON_START:-true}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "/app/journalol", "healthcheck"]
       interval: 10s
       timeout: 3s
-      start_period: 5s
+      start_period: 35s
       retries: 5
-
-volumes:
-  journalol-data:
